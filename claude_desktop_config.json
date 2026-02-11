@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "dev-workflow": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "C:\\Users\\parke\\OneDrive - Cornell University\\Desktop\\ENMGT 5400\\Project 2",
+        "python",
+        "server.py"
+      ]
+    }
+  }
+}
