@@ -14,17 +14,17 @@ def add(a: int, b: int) -> int:
 
 
 def fetch_user(user_id: int, include_metadata: bool = False) -> dict:
-    """[Brief description of fetch_user]
+    """Retrieve the user and return the result.
 
     Args:
-        user_id (int): [Description]
-        include_metadata (bool): [Description]
+        user_id (int): The unique identifier of the user.
+        include_metadata (bool): If True, include additional metadata in the result.
 
     Raises:
-        ValueError: [When this is raised]
+        ValueError: user_id must be non-negative.
 
     Returns:
-        dict: [Description of return value]
+        dict: A dictionary containing the results.
 
     """
     if user_id < 0:

@@ -356,6 +356,247 @@ def _annotation_str(node: ast.AST | None) -> str:
     return "Any"
 
 
+def _infer_summary(target: ast.FunctionDef) -> str:
+    """Infer a one-line summary for a function from its name and body."""
+    name = target.name
+    params = [a.arg for a in target.args.args if a.arg not in ("self", "cls")]
+
+    # __init__
+    if name == "__init__":
+        if params:
+            return (
+                "Initialize a new instance with the given "
+                + ", ".join(f"``{p}``" for p in params)
+                + "."
+            )
+        return "Initialize a new instance."
+
+    # Single-return that is a binary operation → describe the math
+    all_returns = [
+        n for n in ast.walk(target)
+        if isinstance(n, ast.Return) and n.value is not None
+    ]
+    if len(all_returns) == 1 and isinstance(all_returns[0].value, ast.BinOp):
+        op_map = {
+            ast.Add: "sum", ast.Sub: "difference", ast.Mult: "product",
+            ast.Div: "quotient", ast.Mod: "remainder",
+        }
+        word = op_map.get(type(all_returns[0].value.op))
+        if word and len(params) == 2:
+            return f"Return the {word} of ``{params[0]}`` and ``{params[1]}``."
+
+    words = name.split("_")
+
+    # Well-known single-word function names
+    _sw = {
+        "power": "Raise the base to the given exponent and return the result.",
+        "recall": "Retrieve the stored value from memory.",
+        "clear": "Clear the internal state and reset to defaults.",
+        "store": "Store the given value.",
+        "transform": "Transform the input record and return the result.",
+    }
+    if len(words) == 1 and name in _sw:
+        return _sw[name]
+
+    # Multi-word names: use verb-specific templates
+    verb = words[0].lower()
+    subject = " ".join(words[1:])
+
+    _templates = {
+        "validate": "Validate the {s} and return any errors found.",
+        "check": "Check the {s} and return any errors found.",
+        "verify": "Verify the {s}.",
+        "get": "Retrieve the {s}.",
+        "fetch": "Retrieve the {s} and return the result.",
+        "retrieve": "Retrieve the {s}.",
+        "load": "Load the {s} from the source.",
+        "store": "Store the {s}.",
+        "save": "Save the {s}.",
+        "set": "Set the {s}.",
+        "process": "Process the {s} and return the results.",
+        "handle": "Handle the {s}.",
+        "run": "Execute the {s} and return a summary of results.",
+        "execute": "Execute the {s}.",
+        "build": "Build a {s} from the provided data.",
+        "create": "Create a new {s}.",
+        "generate": "Generate a {s}.",
+        "transform": "Transform the {s} and return the result.",
+        "convert": "Convert the {s} to the target format.",
+        "filter": "Filter the {s} based on the given criteria.",
+        "clear": "Clear the {s} and reset to defaults.",
+        "reset": "Reset the {s} to the initial state.",
+        "sanitize": "Sanitize the {s} by removing dangerous content.",
+        "parse": "Parse the {s} and return the structured result.",
+        "compute": "Compute the {s}.",
+        "calculate": "Calculate the {s}.",
+        "count": "Count the {s}.",
+        "batch": "Batch-process the {s} and return the results.",
+        "sort": "Sort the {s}.",
+        "update": "Update the {s}.",
+        "remove": "Remove the {s}.",
+        "delete": "Delete the {s}.",
+    }
+
+    if subject and verb in _templates:
+        return _templates[verb].format(s=subject.replace("_", " "))
+
+    # is/has/can predicates
+    if verb in ("is", "has", "can"):
+        s = subject.replace("_", " ") if subject else "the condition"
+        if verb == "is":
+            return f"Return whether the instance is {s}."
+        if verb == "has":
+            return f"Return whether the instance has {s}."
+        return f"Return whether the instance can {s}."
+
+    # Fallback: capitalise the name as a phrase
+    readable = " ".join(words)
+    return readable[0].upper() + readable[1:] + "."
+
+
+def _infer_param_description(
+    arg_name: str, type_str: str, target: ast.FunctionDef,
+) -> str:
+    """Infer a parameter description from its name, type, and usage."""
+    clean = arg_name.strip("*").lower()
+
+    # Short operand names in arithmetic functions
+    _math_verbs = {"add", "subtract", "multiply", "divide", "power", "mod", "sum"}
+    func_words = set(target.name.lower().split("_"))
+    if clean in ("a", "b", "x", "y") and func_words & _math_verbs:
+        params = [a.arg for a in target.args.args if a.arg not in ("self", "cls")]
+        idx = params.index(arg_name) if arg_name in params else -1
+        return "The first operand." if idx == 0 else "The second operand."
+
+    # Well-known parameter names
+    _known: dict[str, str] = {
+        "base": "The base value to exponentiate.",
+        "exponent": "The exponent to raise the base to.",
+        "name": "The name identifier.",
+        "value": "The value to operate on.",
+        "password": "The password string to validate.",
+        "text": "The input text to process.",
+        "data": "The input data to process.",
+        "items": "The collection of items to process.",
+        "records": "The collection of records to process.",
+        "user_id": "The unique identifier of the user.",
+        "threshold": "Minimum value threshold for filtering.",
+        "strict": "If True, raise on errors instead of skipping.",
+        "validate": "If True, validate each record before processing.",
+        "include_metadata": "If True, include additional metadata in the result.",
+        "max_errors": "Maximum number of errors to tolerate before stopping.",
+        "group_key": "The dictionary key to group records by.",
+        "sub_group_key": "Optional secondary key for nested sub-grouping.",
+        "file_path": "Path to the file to process.",
+        "function_name": "Name of the target function.",
+        "source": "The source code string to parse.",
+        "record": "A single data record to process.",
+        "strategy": "The processing strategy to use.",
+        "required_fields": "List of field names that must be present.",
+        "field_map": "Dictionary mapping old field names to new field names.",
+        "transformers": "Ordered list of transformers to apply to each record.",
+    }
+    if clean in _known:
+        return _known[clean]
+
+    # Boolean flags
+    if type_str.lower() == "bool":
+        if clean.startswith("include"):
+            rest = clean.replace("include_", "").replace("_", " ") or "extra data"
+            return f"If True, include {rest} in the result."
+        readable = clean.replace("_", " ")
+        return f"Whether to enable {readable}."
+
+    # Type-based heuristics
+    tl = type_str.lower()
+    readable = clean.replace("_", " ")
+    if tl.startswith("list"):
+        return f"List of {readable} to process."
+    if tl.startswith("dict"):
+        return f"Dictionary containing {readable} data."
+    if tl in ("int", "float"):
+        return f"The {readable} value."
+    if tl == "str":
+        return f"The {readable} string."
+
+    return f"The {readable} to use."
+
+
+def _infer_raise_description(exc_class: str, target: ast.FunctionDef) -> str:
+    """Infer when an exception is raised from its error message."""
+    if exc_class == "NotImplementedError":
+        return "Subclasses must override this method."
+
+    for node in ast.walk(target):
+        if not isinstance(node, ast.Raise) or not node.exc:
+            continue
+        if (isinstance(node.exc, ast.Call)
+                and isinstance(node.exc.func, ast.Name)
+                and node.exc.func.id == exc_class
+                and node.exc.args
+                and isinstance(node.exc.args[0], ast.Constant)
+                and isinstance(node.exc.args[0].value, str)):
+            msg = node.exc.args[0].value
+            return msg if msg.endswith(".") else msg + "."
+
+    return f"If a {exc_class} condition is encountered."
+
+
+def _infer_return_description(target: ast.FunctionDef, return_type: str) -> str:
+    """Infer a return-value description from the function body and type."""
+    all_returns = [
+        n for n in ast.walk(target)
+        if isinstance(n, ast.Return) and n.value is not None
+    ]
+
+    if len(all_returns) == 1:
+        ret = all_returns[0].value
+
+        if isinstance(ret, ast.BinOp):
+            op_map = {
+                ast.Add: "sum", ast.Sub: "difference", ast.Mult: "product",
+                ast.Div: "quotient", ast.Mod: "remainder",
+            }
+            word = op_map.get(type(ret.op))
+            if word:
+                return f"The {word} of the input values."
+
+        if (isinstance(ret, ast.Attribute)
+                and isinstance(ret.value, ast.Name)
+                and ret.value.id == "self"):
+            attr = ret.attr.lstrip("_").replace("_", " ")
+            return f"The current {attr} value."
+
+        if isinstance(ret, ast.Name):
+            _var_map = {
+                "result": "The computed result.",
+                "results": "The list of processed results.",
+                "output": "The processed output.",
+                "errors": "List of error messages found, empty if valid.",
+                "issues": "List of issues found, empty if valid.",
+                "report": "The generated report dictionary.",
+                "record": "The transformed record.",
+            }
+            if ret.id.lower() in _var_map:
+                return _var_map[ret.id.lower()]
+
+    tl = return_type.lower()
+    if tl == "bool":
+        return "True if the check passes, False otherwise."
+    if tl.startswith("list"):
+        return "The collected results."
+    if tl.startswith("dict"):
+        return "A dictionary containing the results."
+    if tl.startswith("tuple"):
+        return "A tuple containing the result components."
+    if tl in ("str", "string"):
+        return "The resulting string."
+    if tl in ("int", "float"):
+        return "The computed numeric result."
+
+    return "The computed result."
+
+
 def generate_function_docstring(source: str, function_name: str) -> tuple[str, str]:
     """Generate a Google-style docstring for *function_name* and insert it into *source*.
 
@@ -412,21 +653,25 @@ def generate_function_docstring(source: str, function_name: str) -> tuple[str, s
 
     return_type = _annotation_str(target.returns) if target.returns else None
 
-    # ---- Build docstring lines ----
-    doc_lines = [f'{indent}"""[Brief description of {function_name}]', ""]
+    # ---- Build docstring lines (with inferred descriptions) ----
+    summary = _infer_summary(target)
+    doc_lines = [f'{indent}"""{summary}', ""]
     if params:
         doc_lines.append(f"{indent}Args:")
         for p in params:
-            doc_lines.append(f'{indent}    {p["name"]} ({p["type"]}): [Description]')
+            desc = _infer_param_description(p["name"], p["type"], target)
+            doc_lines.append(f'{indent}    {p["name"]} ({p["type"]}): {desc}')
         doc_lines.append("")
     if raises:
         doc_lines.append(f"{indent}Raises:")
         for r in sorted(raises):
-            doc_lines.append(f"{indent}    {r}: [When this is raised]")
+            desc = _infer_raise_description(r, target)
+            doc_lines.append(f"{indent}    {r}: {desc}")
         doc_lines.append("")
     if return_type and return_type != "None":
         doc_lines.append(f"{indent}Returns:")
-        doc_lines.append(f"{indent}    {return_type}: [Description of return value]")
+        ret_desc = _infer_return_description(target, return_type)
+        doc_lines.append(f"{indent}    {return_type}: {ret_desc}")
         doc_lines.append("")
     doc_lines.append(f'{indent}"""')
 
