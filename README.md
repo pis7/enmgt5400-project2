@@ -78,13 +78,13 @@ Then restart Claude Desktop.
 
 ## Running Tests
 
-The test suite (`exploit_tests.py`) validates that both best practices work correctly and that the MCP tools produce expected results. It is organised into three sections:
+The test suite (`server_tests.py`) validates that both best practices work correctly and that the MCP tools produce expected results. It is organised into three sections:
 
 ### Quick Start
 
 ```bash
 # Make sure the virtual environment is active, then:
-python exploit_tests.py
+python server_tests.py
 ```
 
 Expected output: **27/27 tests pass**. The script exits with code `0` on success and `1` if any test fails.
@@ -138,7 +138,7 @@ Expected output: **27/27 tests pass**. The script exits with code `0` on success
 ```
 Project 2/
 ├── server.py                  # Main MCP server implementation
-├── exploit_tests.py           # Exploit demonstration scripts
+├── server_tests.py            # Test suite
 ├── requirements.txt           # Python dependencies
 ├── .env                       # Configuration (not committed)
 ├── .gitignore                 # Git ignore rules
