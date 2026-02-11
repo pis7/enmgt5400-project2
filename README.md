@@ -7,7 +7,7 @@ An MCP (Model Context Protocol) server for Python development workflows, providi
 | Component | Name | Description |
 |-----------|------|-------------|
 | Tool 1 | `analyze_code_complexity` | Parses Python files using the `ast` module and returns complexity metrics (cyclomatic complexity, nesting depth, line counts, docstring coverage) |
-| Tool 2 | `generate_docstrings` | Analyses a function's signature, parameters, return type, and raised exceptions to generate a Google-style docstring |
+| Tool 2 | `generate_docstrings` | Analyses function signatures, parameters, return types, and raised exceptions to generate Google-style docstrings — works on a single function, a whole file, or an entire directory |
 | Prompt | `code-review-assistant` | A comprehensive code review template that chains both tools together for a full file review |
 
 ## Best Practices
@@ -87,7 +87,7 @@ The test suite (`server_tests.py`) validates that both best practices work corre
 python server_tests.py
 ```
 
-Expected output: **27/27 tests pass**. The script exits with code `0` on success and `1` if any test fails.
+Expected output: **28/28 tests pass**. The script exits with code `0` on success and `1` if any test fails.
 
 ### What the Tests Cover
 
@@ -131,7 +131,8 @@ Expected output: **27/27 tests pass**. The script exits with code `0` on success
 | 24 | Complexity (validators.py — high CC) | `validate_user_input` has CC ≥ 8 due to heavy branching |
 | 25 | Complexity (data_pipeline.py — classes) | Detects ≥ 3 classes including those with inheritance |
 | 26 | Docstring generation with Raises | Generated docstring includes Args, Raises, and Returns sections |
-| 27 | Directory scan finds all files | Directory mode discovers all 5 `.py` files in `sample_projects/` |
+| 27 | Docstring generation (directory) | `generate_docstrings` processes all undocumented functions across a directory |
+| 28 | Directory scan finds all files | Directory mode discovers all 5 `.py` files in `sample_projects/` |
 
 ## Project Structure
 
@@ -174,13 +175,19 @@ Below are concrete prompts you can type into Claude Desktop to demonstrate each 
 
 ### Demo 3 — Generate a Docstring
 
-**What it shows:** The `generate_docstrings` tool inspecting a function's signature, parameters, return type, and raised exceptions to produce a Google-style docstring and insert it into the file.
+**What it shows:** The `generate_docstrings` tool inspecting a function's signature, parameters, return type, and raised exceptions to produce a Google-style docstring and insert it into the file. The tool accepts a single function, a whole file, or an entire directory.
+
+**Single function:**
 
 > Generate a docstring for the divide function in calculator.py
 
 **Expected result:** A Google-style docstring is generated with `Args` (a, b), `Raises` (ZeroDivisionError), and `Returns` sections, and is written directly into `calculator.py`. You can open the file afterwards to show the inserted docstring.
 
-Alternatively, try `process_data` in `example.py` or `validate_user_input` in `validators.py` for functions without docstrings.
+**Entire directory:**
+
+> Generate docstrings for all undocumented functions in sample_projects
+
+**Expected result:** The tool scans every `.py` file in the directory, finds all functions without docstrings, generates and inserts a docstring for each one, and returns a JSON summary listing the files and functions that were documented.
 
 ### Demo 4 — Generate Docstring (Already Exists)
 

@@ -734,6 +734,17 @@ def _collect_py_files(directory: Path) -> list[Path]:
     return sorted(f for f in directory.rglob("*.py") if f.is_file())
 
 
+def _find_undocumented_functions(source: str) -> list[str]:
+    """Return the names of all functions in *source* that lack a docstring."""
+    tree = sandbox_parse(source)
+    return [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and not _has_docstring(node)
+    ]
+
+
 # ===========================================================================
 # MCP Tools
 # Citation: FastMCP @mcp.tool() pattern from https://github.com/modelcontextprotocol/python-sdk
@@ -751,23 +762,21 @@ def analyze_code_complexity(file_path: str) -> str:
     try:
         check_rate_limit("analyze_code_complexity")
 
-        # Determine whether the target is a file or a directory
-        if "\x00" in file_path:
-            return "Access denied: invalid characters in path"
-
         # Normalize: paths are relative to ALLOWED_DIR, so if the user
-        # passes the allowed directory's own name (e.g. "sample_projects")
-        # it would double up.  Map it to "." so it resolves correctly.
+        # passes the allowed directory's own name (e.g. "sample_projects"
+        # or "sample_projects/example.py") it would double up.  Strip the
+        # redundant prefix so the path resolves correctly.
         _stripped = file_path.strip().replace("\\", "/").strip("/")
+        _prefix = ALLOWED_DIR.name + "/"
         if _stripped == ALLOWED_DIR.name:
             file_path = "."
+        elif _stripped.startswith(_prefix):
+            file_path = _stripped[len(_prefix):]
 
+        # Determine whether the target is a file or a directory.
+        # Security checks (path traversal, null bytes, etc.) are enforced
+        # inside validate_file_path / validate_directory_path.
         candidate = (ALLOWED_DIR / file_path).resolve()
-        try:
-            candidate.relative_to(ALLOWED_DIR)
-        except ValueError:
-            return "Access denied: path is outside the allowed directory"
-
         if candidate.is_dir():
             validated_dir = validate_directory_path(file_path)
             py_files = _collect_py_files(validated_dir)
@@ -789,22 +798,94 @@ def analyze_code_complexity(file_path: str) -> str:
 
 
 @mcp.tool()
-def generate_docstrings(file_path: str, function_name: str) -> str:
-    """Generate a Google-style docstring for a specific function in a Python file
-    and insert it directly into the file.
+def generate_docstrings(file_path: str, function_name: str = "") -> str:
+    """Generate Google-style docstrings for a Python file **or every .py file
+    in a directory** and insert them directly into the source files.
+
+    When *function_name* is provided, only that single function is processed.
+    When omitted, every undocumented function in the target file (or all files
+    in the target directory) receives a generated docstring.
 
     Args:
-        file_path: Relative path to the Python file
+        file_path: Relative path to a Python file or directory
                    (relative to the allowed directory)
-        function_name: Name of the function to generate a docstring for
+        function_name: Optional — name of a single function to document.
+                       If empty, all undocumented functions are processed.
     """
     try:
         check_rate_limit("generate_docstrings")
+
+        # Normalize: strip the allowed directory's own name prefix if present
+        # (e.g. "sample_projects/calculator.py" → "calculator.py")
+        _stripped = file_path.strip().replace("\\", "/").strip("/")
+        _prefix = ALLOWED_DIR.name + "/"
+        if _stripped == ALLOWED_DIR.name:
+            file_path = "."
+        elif _stripped.startswith(_prefix):
+            file_path = _stripped[len(_prefix):]
+
+        # Determine whether the target is a file or a directory.
+        # Security checks (path traversal, null bytes, etc.) are enforced
+        # inside validate_file_path / validate_directory_path.
+        candidate = (ALLOWED_DIR / file_path).resolve()
+
+        # --- Directory mode: generate docstrings for all undocumented funcs ---
+        if candidate.is_dir():
+            validated_dir = validate_directory_path(file_path)
+            py_files = _collect_py_files(validated_dir)
+            if not py_files:
+                return "No Python files found in the directory."
+            results: list[dict] = []
+            for pf in py_files:
+                source = pf.read_text(encoding="utf-8")
+                undocumented = _find_undocumented_functions(source)
+                if not undocumented:
+                    continue
+                generated: list[str] = []
+                for func in undocumented:
+                    try:
+                        _, source = generate_function_docstring(source, func)
+                        generated.append(func)
+                    except ValueError:
+                        continue
+                if generated:
+                    pf.write_text(source, encoding="utf-8")
+                    display = str(pf.relative_to(ALLOWED_DIR))
+                    results.append({"file": display, "functions": generated})
+            if not results:
+                return "No undocumented functions found."
+            return json.dumps(results, indent=2)
+
+        # --- File mode ---
         validated = validate_file_path(file_path)
         source = validated.read_text(encoding="utf-8")
-        docstring_text, modified_source = generate_function_docstring(source, function_name)
-        validated.write_text(modified_source, encoding="utf-8")
-        return f"Docstring inserted for '{function_name}' in {file_path}:\n\n{docstring_text}"
+
+        if function_name:
+            # Single-function mode (original behaviour)
+            docstring_text, modified_source = generate_function_docstring(
+                source, function_name,
+            )
+            validated.write_text(modified_source, encoding="utf-8")
+            return (
+                f"Docstring inserted for '{function_name}' in {file_path}:"
+                f"\n\n{docstring_text}"
+            )
+
+        # All-undocumented mode for a single file
+        undocumented = _find_undocumented_functions(source)
+        if not undocumented:
+            return "No undocumented functions found."
+        generated: list[str] = []
+        for func in undocumented:
+            try:
+                _, source = generate_function_docstring(source, func)
+                generated.append(func)
+            except ValueError:
+                continue
+        if generated:
+            validated.write_text(source, encoding="utf-8")
+        display = str(validated.relative_to(ALLOWED_DIR))
+        return json.dumps({"file": display, "functions": generated}, indent=2)
     except Exception as e:
         return safe_error_response(e)
 

@@ -2,18 +2,61 @@
 
 
 def add(a: float, b: float) -> float:
+    """Return the sum of ``a`` and ``b``.
+
+    Args:
+        a (float): The first operand.
+        b (float): The second operand.
+
+    Returns:
+        float: The sum of the input values.
+
+    """
     return a + b
 
 
 def subtract(a: float, b: float) -> float:
+    """Return the difference of ``a`` and ``b``.
+
+    Args:
+        a (float): The first operand.
+        b (float): The second operand.
+
+    Returns:
+        float: The difference of the input values.
+
+    """
     return a - b
 
 
 def multiply(a: float, b: float) -> float:
+    """Return the product of ``a`` and ``b``.
+
+    Args:
+        a (float): The first operand.
+        b (float): The second operand.
+
+    Returns:
+        float: The product of the input values.
+
+    """
     return a * b
 
 
 def divide(a: float, b: float) -> float:
+    """Return the quotient of ``a`` and ``b``.
+
+    Args:
+        a (float): The first operand.
+        b (float): The second operand.
+
+    Raises:
+        ZeroDivisionError: Cannot divide by zero.
+
+    Returns:
+        float: The quotient of the input values.
+
+    """
     if b == 0:
         raise ZeroDivisionError("Cannot divide by zero")
     return a / b

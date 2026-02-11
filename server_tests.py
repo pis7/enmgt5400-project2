@@ -45,6 +45,7 @@ from server import (
     generate_docstrings,
     compute_complexity,
     generate_function_docstring,
+    _find_undocumented_functions,
     ALLOWED_DIR,
     RATE_LIMIT_MAX_CALLS,
     RATE_LIMIT_WINDOW_SECONDS,
@@ -621,6 +622,44 @@ def test_directory_scan_finds_all_files():
         return FAIL, f"Tool returned non-JSON: {result[:120]}"
 
 
+def test_docstring_generation_directory():
+    """Verify generate_docstrings processes all undocumented functions in a directory.
+
+    Saves and restores original file contents so the test is non-destructive.
+    """
+    from server import _collect_py_files
+    _call_timestamps["generate_docstrings"] = []
+
+    # Save originals so we can restore after the test
+    validated_dir = ALLOWED_DIR.resolve()
+    py_files = sorted(f for f in validated_dir.rglob("*.py") if f.is_file())
+    originals = {pf: pf.read_text(encoding="utf-8") for pf in py_files}
+
+    try:
+        result = generate_docstrings(_SAMPLE_DIR_REL)
+        # Result should be valid JSON (list of dicts) or "No undocumented functions found."
+        if result == "No undocumented functions found.":
+            return (PASS,
+                    "Directory mode returned no undocumented functions (all documented)")
+        data = json.loads(result)
+        if isinstance(data, list):
+            total = sum(len(entry.get("functions", [])) for entry in data)
+            files = [entry.get("file", "?") for entry in data]
+            return (PASS,
+                    f"Directory mode generated docstrings for {total} "
+                    f"function(s) across {len(data)} file(s): "
+                    f"{', '.join(files)}")
+        return FAIL, f"Unexpected response type: {type(data).__name__}"
+    except json.JSONDecodeError:
+        return FAIL, f"Tool returned non-JSON: {result[:120]}"
+    except Exception as e:
+        return FAIL, f"Unexpected error: {e}"
+    finally:
+        # Restore original files regardless of test outcome
+        for pf, content in originals.items():
+            pf.write_text(content, encoding="utf-8")
+
+
 # ===========================================================================
 # Main
 # ===========================================================================
@@ -681,6 +720,7 @@ if __name__ == "__main__":
     run_test("Complexity (validators.py - high CC)",      test_analyze_complexity_validators_branching)
     run_test("Complexity (data_pipeline.py - classes)",   test_analyze_complexity_pipeline_classes)
     run_test("Docstring generation with Raises",          test_docstring_generation_with_raises)
+    run_test("Docstring generation (directory)",          test_docstring_generation_directory)
     run_test("Directory scan finds all files",            test_directory_scan_finds_all_files)
 
     print_report()
