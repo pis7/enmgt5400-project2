@@ -826,6 +826,7 @@ def code_review_assistant(file_path: str) -> str:
         "   - Is nesting too deep (> 4 levels)?\n"
         "   - Are there functions missing docstrings?\n\n"
         "3. **Documentation Review**: For any functions missing docstrings, "
+        "use the `generate_docstring` tool to create appropriate documentation.\n\n"
         "4. **Summary Report**: Provide a structured report with:\n"
         "   - Overall health score (Good / Needs Improvement / Critical)\n"
         "   - Key metrics summary\n"
