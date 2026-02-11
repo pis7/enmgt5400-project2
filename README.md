@@ -194,9 +194,9 @@ Alternatively, try `process_data` in `example.py` or `validate_user_input` in `v
 
 **What it shows:** The `code-review-assistant` prompt template, which chains both tools together for a full automated review.
 
-Click the **prompt icon** (📎 or prompt selector) in Claude Desktop, select **code-review-assistant**, and enter `example.py` as the file path.
+Click the **prompt icon** (📎 or prompt selector) in Claude Desktop, select **code-review-assistant**, and enter `example.py` (single file) or `sample_projects` (entire directory) as the file path.
 
-**Expected result:** Claude runs `analyze_code_complexity` first, evaluates the metrics against quality thresholds (complexity > 10, lines > 50, nesting > 4), identifies undocumented functions, offers to generate docstrings, and produces a structured report with an overall health score.
+**Expected result:** Claude runs `analyze_code_complexity` first, evaluates the metrics against quality thresholds (complexity > 10, lines > 50, nesting > 4), identifies undocumented functions, offers to generate docstrings, and produces a structured report with an overall health score. When given the directory, it reviews all 5 `.py` files at once.
 
 ### Demo 6 — Best Practice 1: Path Traversal Prevention (Sandboxing)
 

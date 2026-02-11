@@ -754,6 +754,14 @@ def analyze_code_complexity(file_path: str) -> str:
         # Determine whether the target is a file or a directory
         if "\x00" in file_path:
             return "Access denied: invalid characters in path"
+
+        # Normalize: paths are relative to ALLOWED_DIR, so if the user
+        # passes the allowed directory's own name (e.g. "sample_projects")
+        # it would double up.  Map it to "." so it resolves correctly.
+        _stripped = file_path.strip().replace("\\", "/").strip("/")
+        if _stripped == ALLOWED_DIR.name:
+            file_path = "."
+
         candidate = (ALLOWED_DIR / file_path).resolve()
         try:
             candidate.relative_to(ALLOWED_DIR)
@@ -826,7 +834,7 @@ def code_review_assistant(file_path: str) -> str:
         "   - Is nesting too deep (> 4 levels)?\n"
         "   - Are there functions missing docstrings?\n\n"
         "3. **Documentation Review**: For any functions missing docstrings, "
-        "use the `generate_docstring` tool to create appropriate documentation.\n\n"
+        "use the `generate_docstrings` tool to create appropriate documentation.\n\n"
         "4. **Summary Report**: Provide a structured report with:\n"
         "   - Overall health score (Good / Needs Improvement / Critical)\n"
         "   - Key metrics summary\n"
