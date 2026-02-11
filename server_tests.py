@@ -612,11 +612,11 @@ def test_directory_scan_finds_all_files():
         if not isinstance(data, list):
             return FAIL, f"Expected a list, got {type(data).__name__}"
         filenames = sorted(entry.get("file", "?") for entry in data)
-        if len(data) >= 4:
+        if len(data) >= 5:
             return (PASS,
                     f"Directory scan found {len(data)} files: "
                     f"{', '.join(filenames)}")
-        return FAIL, f"Expected >= 4 files, found {len(data)}: {filenames}"
+        return FAIL, f"Expected >= 5 files, found {len(data)}: {filenames}"
     except json.JSONDecodeError:
         return FAIL, f"Tool returned non-JSON: {result[:120]}"
 

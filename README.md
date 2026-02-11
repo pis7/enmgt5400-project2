@@ -14,7 +14,7 @@ An MCP (Model Context Protocol) server for Python development workflows, providi
 
 1. **Sandboxing** — Two layers: (A) **Directory jailing** resolves and validates all file paths against a jailed allowed directory, preventing `../` traversal, absolute path bypasses, null byte injection, and symlink escapes. (B) **Static analysis only** — user-supplied Python is processed exclusively via `ast.parse()`, which builds a syntax tree without executing code. Error messages are sanitised so internal paths, credentials, and stack traces are never exposed.
 
-2. **Rate Limiting** — A sliding-window throttle tracks timestamps of recent calls per tool. If the number of calls inside a 60-second window exceeds the limit (10), the request is rejected. Each tool has its own independent counter, preventing one tool's usage from blocking another.
+2. **Rate Limiting** — A sliding-window throttle tracks timestamps of recent calls per tool. If the number of calls inside a 30-second window exceeds the limit (2), the request is rejected. Each tool has its own independent counter, preventing one tool's usage from blocking another.
 
 ## Prerequisites
 
@@ -111,8 +111,8 @@ Expected output: **27/27 tests pass**. The script exits with code `0` on success
 
 | # | Test | What it proves |
 |---|------|---------------|
-| 12 | Normal usage within limit | All 10 calls inside the 60 s window succeed |
-| 13 | Excess calls blocked | Call #11 is rejected with a `Rate limit exceeded` error |
+| 12 | Normal usage within limit | All 2 calls inside the 30 s window succeed |
+| 13 | Excess calls blocked | Call #3 is rejected with a `Rate limit exceeded` error |
 | 14 | Sliding window expires old timestamps | Stale entries fall off; a new call succeeds after the window resets |
 | 15 | Per-tool isolation | Exhausting tool A's limit does not affect tool B |
 
@@ -131,7 +131,7 @@ Expected output: **27/27 tests pass**. The script exits with code `0` on success
 | 24 | Complexity (validators.py — high CC) | `validate_user_input` has CC ≥ 8 due to heavy branching |
 | 25 | Complexity (data_pipeline.py — classes) | Detects ≥ 3 classes including those with inheritance |
 | 26 | Docstring generation with Raises | Generated docstring includes Args, Raises, and Returns sections |
-| 27 | Directory scan finds all files | Directory mode discovers all 4 `.py` files in `sample_projects/` |
+| 27 | Directory scan finds all files | Directory mode discovers all 5 `.py` files in `sample_projects/` |
 
 ## Project Structure
 
@@ -148,7 +148,8 @@ Project 2/
     ├── example.py             # Mixed complexity: simple funcs, nested loops, a class
     ├── calculator.py           # Low complexity: basic arithmetic, a class with memory
     ├── validators.py           # High branching: input validation with many if/elif chains
-    └── data_pipeline.py        # Class hierarchy, deep nesting, entry point (__main__)
+    ├── data_pipeline.py        # Class hierarchy, deep nesting, entry point (__main__)
+    └── malicious.py            # Dangerous constructs (exec/eval) for sandbox demo
 ```
 
 ## Claude Desktop Demo Guide
@@ -169,7 +170,7 @@ Below are concrete prompts you can type into Claude Desktop to demonstrate each 
 
 > Analyze the complexity of the entire sample_projects directory
 
-**Expected result:** A JSON array with one entry per `.py` file found inside `sample_projects/` (4 files: `example.py`, `calculator.py`, `validators.py`, `data_pipeline.py`).
+**Expected result:** A JSON array with one entry per `.py` file found inside `sample_projects/` (5 files: `calculator.py`, `data_pipeline.py`, `example.py`, `malicious.py`, `validators.py`).
 
 ### Demo 3 — Generate a Docstring
 
@@ -201,11 +202,11 @@ Click the **prompt icon** (📎 or prompt selector) in Claude Desktop, select **
 
 **What it shows:** Directory jailing blocks attempts to read files outside the allowed directory.
 
-> Analyze the complexity of ../../etc/passwd
+> Analyze the complexity of ../../etc/sensitive_python.py
 
 or
 
-> Analyze the complexity of C:\Windows\System32\config.sys
+> Analyze the complexity of C:\Windows\sensitive_python.py
 
 **Expected result:** The server returns `"Access denied: path is outside the allowed directory"` instead of leaking file contents. This demonstrates that all paths are resolved and validated against the jailed `ALLOWED_DIR`.
 
@@ -219,23 +220,31 @@ or
 
 ### Demo 8 — Best Practice 1: Static Analysis Only (No Code Execution)
 
-**What it shows:** Files containing dangerous constructs like `exec()` or `eval()` are parsed into an AST without ever being executed.
+**What it shows:** Files containing dangerous constructs like `exec()`, `eval()`, and `compile()` are parsed into an AST without ever being executed. The sample file `malicious.py` contains functions that attempt to steal secrets, open a reverse shell, wipe the filesystem, and exfiltrate data — none of which are executed.
 
-> Analyze the complexity of example.py
+> Analyze the complexity of malicious.py
 
-**What to explain:** Even if a file contained `exec("malicious code")`, the server only builds a syntax tree via `ast.parse()` — it never calls `exec()`, `eval()`, `compile()`, or `subprocess` on user content. The server logs a warning when these constructs are detected but still returns metrics safely.
+**Expected result:** The tool returns normal complexity metrics (functions, classes, line counts) for the file — proving the code was parsed, not run. Meanwhile, the **server-side log** prints warnings like:
+
+```
+WARNING:dev-workflow-server:Sandbox: file malicious.py contains a call to 'exec' – NOT executed (static analysis only).
+WARNING:dev-workflow-server:Sandbox: file malicious.py contains a call to 'eval' – NOT executed (static analysis only).
+WARNING:dev-workflow-server:Sandbox: file malicious.py contains a call to 'compile' – NOT executed (static analysis only).
+```
+
+These warnings prove the server detected every dangerous builtin but processed the file exclusively through `ast.parse()` — no code was ever executed. If the code had actually run, the machine would have been compromised.
 
 ### Demo 9 — Best Practice 2: Rate Limiting
 
 **What it shows:** The sliding-window throttle that prevents a single client from overwhelming the server.
 
-Rapidly ask the same question more than 10 times within 60 seconds:
+Rapidly ask the same question more than 2 times within 30 seconds:
 
 > Analyze the complexity of example.py
 
-*(repeat 10+ times quickly)*
+*(repeat 2+ times quickly)*
 
-**Expected result:** The first 10 calls succeed. The 11th returns `"Rate limit exceeded: max 10 calls per 60s for 'analyze_code_complexity'"`. After 60 seconds the window resets and calls succeed again. Each tool (`analyze_code_complexity`, `generate_docstrings`) has its own independent counter.
+**Expected result:** The first 2 calls succeed. The 3rd returns `"Rate limit exceeded: max 2 calls per 30s for 'analyze_code_complexity'"`. After 30 seconds the window resets and calls succeed again. Each tool (`analyze_code_complexity`, `generate_docstrings`) has its own independent counter.
 
 ### Demo 10 — Sanitized Error Messages
 

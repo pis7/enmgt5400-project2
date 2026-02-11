@@ -199,8 +199,8 @@ def safe_error_response(error: Exception) -> str:
 # request is rejected.  This prevents a single client from overwhelming
 # the server with rapid-fire requests.
 # ===========================================================================
-RATE_LIMIT_MAX_CALLS = 10       # max calls allowed per window
-RATE_LIMIT_WINDOW_SECONDS = 60  # sliding window size in seconds
+RATE_LIMIT_MAX_CALLS = 2        # max calls allowed per window
+RATE_LIMIT_WINDOW_SECONDS = 30  # sliding window size in seconds
 
 _call_timestamps: dict[str, list[float]] = defaultdict(list)
 
