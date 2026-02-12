@@ -5,7 +5,7 @@
       "args": [
         "run",
         "--directory",
-        "C:\\Users\\parke\\OneDrive - Cornell University\\Desktop\\ENMGT 5400\\Project 2",
+        "C:\\Users\\parke\\OneDrive - Cornell University\\Desktop\\ENMGT 5400\\enmgt5400-project2",
         "python",
         "server.py"
       ]
