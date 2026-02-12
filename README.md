@@ -18,7 +18,7 @@ An MCP (Model Context Protocol) server for Python development workflows, providi
 
 ## Prerequisites
 
-- Python 3.14+
+- Python 3.13+
 - [uv](https://docs.astral.sh/uv/) (recommended package manager)
 - Claude Desktop (for MCP integration)
 

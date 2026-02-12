@@ -7,7 +7,6 @@ for Python development workflows.
 Tools:
     - analyze_code_complexity: Parse Python files/directories and return complexity metrics
     - generate_docstrings: Generate Google-style docstrings for functions
-    - generate_uml_diagram: Generate a UML class diagram PNG from a file/directory and deps
 
 Prompt:
     - code-review-assistant: Comprehensive code review template
@@ -23,7 +22,6 @@ Citations:
     - Cyclomatic complexity: https://en.wikipedia.org/wiki/Cyclomatic_complexity
     - OWASP Path Traversal: https://owasp.org/www-community/attacks/Path_Traversal
     - OWASP Code Injection: https://owasp.org/www-community/attacks/Code_Injection
-    - matplotlib: https://matplotlib.org/stable/api/index.html
 """
 
 import ast
@@ -34,11 +32,6 @@ import traceback
 from collections import defaultdict
 from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")  # non-GUI backend – no display server needed
-import matplotlib.pyplot as plt                         # noqa: E402
-import matplotlib.patches as mpatches                   # noqa: E402
-import matplotlib.path as mpath                          # noqa: E402
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
