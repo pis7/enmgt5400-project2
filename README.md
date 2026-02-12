@@ -28,7 +28,7 @@ An MCP (Model Context Protocol) server for Python development workflows, providi
 
 ```bash
 git clone <your-repo-url>
-cd "Project 2"
+cd "enmgt5400-project2"
 ```
 
 ### 2. Create and activate virtual environment
@@ -137,7 +137,7 @@ Expected output: **28/28 tests pass**. The script exits with code `0` on success
 ## Project Structure
 
 ```
-Project 2/
+enmgt5400-project2/
 ├── server.py                  # Main MCP server implementation
 ├── server_tests.py            # Test suite
 ├── requirements.txt           # Python dependencies
